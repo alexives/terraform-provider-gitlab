@@ -28,12 +28,11 @@ func resourceGitlabProjectPagesDomain() *schema.Resource {
 				ForceNew: true,
 				Required: true,
 			},
-			// Required changes pending https://github.com/xanzy/go-gitlab/pull/769
-			// "auto_ssl_enabled": {
-			// 	Type:     schema.TypeBool,
-			// 	Required: false,
-			// 	Default:  true,
-			// },
+			"auto_ssl_enabled": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  true,
+			},
 			"certificate": {
 				Type:      schema.TypeString,
 				Optional:  true,
@@ -53,14 +52,15 @@ func resourceGitlabProjectPagesDomainCreate(d *schema.ResourceData, meta interfa
 
 	project := d.Get("project").(string)
 	domain := d.Get("domain").(string)
-	// autoSslEnabled := d.Get("auto_ssl_enabled").(string)
+	autoSslEnabled := d.Get("auto_ssl_enabled").(bool)
 	certificate := d.Get("certificate").(string)
 	key := d.Get("key").(string)
 
 	options := gitlab.CreatePagesDomainOptions{
-		Domain:      &domain,
-		Key:         &key,
-		Certificate: &certificate,
+		Domain:         &domain,
+		Key:            &key,
+		Certificate:    &certificate,
+		AutoSslEnabled: &autoSslEnabled,
 	}
 	log.Printf("[DEBUG] create gitlab project variable %s/%s", project, key)
 
@@ -94,7 +94,7 @@ func resourceGitlabProjectPagesDomainRead(d *schema.ResourceData, meta interface
 	d.Set("url", v.URL)
 	d.Set("verified", v.Verified)
 	d.Set("verification_code", v.VerificationCode)
-	// d.Set("auto_ssl_enabled", v.AutoSslEnabled)
+	d.Set("auto_ssl_enabled", v.AutoSslEnabled)
 	d.Set("protected", v.VerificationCode)
 	d.Set("certificate", v.Certificate)
 
@@ -106,15 +106,14 @@ func resourceGitlabProjectPagesDomainUpdate(d *schema.ResourceData, meta interfa
 
 	project := d.Get("project").(string)
 	domain := d.Get("domain").(string)
-	// autoSslEnabled := d.Get("auto_ssl_enabled").(string)
+	autoSslEnabled := d.Get("auto_ssl_enabled").(bool)
 	certificate := d.Get("certificate").(string)
 	key := d.Get("key").(string)
 
 	options := &gitlab.UpdatePagesDomainOptions{
-		// This  is spelled incorrectly in the go-gitlab client :(
-		Cerificate: &certificate,
-		Key:        &key,
-		// AutoSslEnabled: &autoSslEnabled,
+		Certificate:    &certificate,
+		Key:            &key,
+		AutoSslEnabled: &autoSslEnabled,
 	}
 	log.Printf("[DEBUG] update gitlab project variable %s/%s", project, domain)
 

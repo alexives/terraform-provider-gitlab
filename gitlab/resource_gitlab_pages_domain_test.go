@@ -3,6 +3,7 @@ package gitlab
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
@@ -11,7 +12,7 @@ import (
 )
 
 func TestAccGitlabProjectPagesDomain_basic(t *testing.T) {
-	var projectVariable gitlab.ProjectVariable
+	var pagesDomain gitlab.PagesDomain
 	rString := acctest.RandString(5)
 
 	resource.Test(t, resource.TestCase{
@@ -21,12 +22,12 @@ func TestAccGitlabProjectPagesDomain_basic(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create a project and variable with default options
 			{
-				Config: testAccGitlabProjectPagesDomainConfig(rString),
+				Config: testAccGitlabProjectPagesDomainConfig(rString, true),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckGitlabProjectPagesDomainExists("gitlab_project_variable.foo", &projectVariable),
-					testAccCheckGitlabProjectPagesDomainAttributes(&projectVariable, &testAccGitlabProjectPagesDomainExpectedAttributes{
-						Key:   fmt.Sprintf("key_%s", rString),
-						Value: fmt.Sprintf("value-%s", rString),
+					testAccCheckGitlabProjectPagesDomainExists("gitlab_project_variable.foo", &pagesDomain),
+					testAccCheckGitlabProjectPagesDomainAttributes(&pagesDomain, &testAccGitlabProjectPagesDomainExpectedAttributes{
+						Domain:         fmt.Sprintf("domain_%s", rString),
+						AutoSslEnabled: true,
 					}),
 				),
 			},
@@ -34,23 +35,19 @@ func TestAccGitlabProjectPagesDomain_basic(t *testing.T) {
 			{
 				Config: testAccGitlabProjectPagesDomainUpdateConfig(rString),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckGitlabProjectPagesDomainExists("gitlab_project_variable.foo", &projectVariable),
-					testAccCheckGitlabProjectPagesDomainAttributes(&projectVariable, &testAccGitlabProjectPagesDomainExpectedAttributes{
-						Key:       fmt.Sprintf("key_%s", rString),
-						Value:     fmt.Sprintf("value-inverse-%s", rString),
-						Protected: true,
+					testAccCheckGitlabProjectPagesDomainExists("gitlab_project_variable.foo", &pagesDomain),
+					testAccCheckGitlabProjectPagesDomainAttributes(&pagesDomain, &testAccGitlabProjectPagesDomainExpectedAttributes{
+						Domain: fmt.Sprintf("domain_%s", rString),
 					}),
 				),
 			},
 			// Update the project variable to toggle the options back
 			{
-				Config: testAccGitlabProjectPagesDomainConfig(rString),
+				Config: testAccGitlabProjectPagesDomainConfig(rString, true),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckGitlabProjectPagesDomainExists("gitlab_project_variable.foo", &projectVariable),
-					testAccCheckGitlabProjectPagesDomainAttributes(&projectVariable, &testAccGitlabProjectPagesDomainExpectedAttributes{
-						Key:       fmt.Sprintf("key_%s", rString),
-						Value:     fmt.Sprintf("value-%s", rString),
-						Protected: false,
+					testAccCheckGitlabProjectPagesDomainExists("gitlab_project_variable.foo", &pagesDomain),
+					testAccCheckGitlabProjectPagesDomainAttributes(&pagesDomain, &testAccGitlabProjectPagesDomainExpectedAttributes{
+						Domain: fmt.Sprintf("domain_%s", rString),
 					}),
 				),
 			},
@@ -58,7 +55,7 @@ func TestAccGitlabProjectPagesDomain_basic(t *testing.T) {
 	})
 }
 
-func testAccCheckGitlabProjectPagesDomainExists(n string, projectVariable *gitlab.ProjectVariable) resource.TestCheckFunc {
+func testAccCheckGitlabProjectPagesDomainExists(n string, projectVariable *gitlab.PagesDomain) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[n]
 		if !ok {
@@ -69,39 +66,45 @@ func testAccCheckGitlabProjectPagesDomainExists(n string, projectVariable *gitla
 		if repoName == "" {
 			return fmt.Errorf("No project ID is set")
 		}
-		key := rs.Primary.Attributes["key"]
-		if key == "" {
-			return fmt.Errorf("No variable key is set")
+		domain := rs.Primary.Attributes["domain"]
+		if domain == "" {
+			return fmt.Errorf("No variable domain is set")
 		}
 		conn := testAccProvider.Meta().(*gitlab.Client)
 
-		gotVariable, _, err := conn.ProjectVariables.GetVariable(repoName, key)
+		gotPagesDomain, _, err := conn.PagesDomains.GetPagesDomain(repoName, domain)
 		if err != nil {
 			return err
 		}
-		*projectVariable = *gotVariable
+		*projectVariable = *gotPagesDomain
 		return nil
 	}
 }
 
 type testAccGitlabProjectPagesDomainExpectedAttributes struct {
-	Key       string
-	Value     string
-	Protected bool
+	Domain           string
+	URL              string
+	Verified         bool
+	VerificationCode string
+	AutoSslEnabled   bool
+	Certificate      struct {
+		Expired    bool
+		Expiration *time.Time
+	}
 }
 
-func testAccCheckGitlabProjectPagesDomainAttributes(variable *gitlab.ProjectVariable, want *testAccGitlabProjectPagesDomainExpectedAttributes) resource.TestCheckFunc {
+func testAccCheckGitlabProjectPagesDomainAttributes(pagesDomain *gitlab.PagesDomain, want *testAccGitlabProjectPagesDomainExpectedAttributes) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		if variable.Key != want.Key {
-			return fmt.Errorf("got key %s; want %s", variable.Key, want.Key)
+		if pagesDomain.Domain != want.Domain {
+			return fmt.Errorf("got domain %s; want %s", pagesDomain.Domain, want.Domain)
 		}
 
-		if variable.Value != want.Value {
-			return fmt.Errorf("got value %s; value %s", variable.Value, want.Value)
+		if pagesDomain.Verified != want.Verified {
+			return fmt.Errorf("got verified %t; want %t", pagesDomain.Verified, want.Verified)
 		}
 
-		if variable.Protected != want.Protected {
-			return fmt.Errorf("got protected %t; want %t", variable.Protected, want.Protected)
+		if pagesDomain.VerificationCode != want.VerificationCode {
+			return fmt.Errorf("got verification code %s; want %s", pagesDomain.VerificationCode, want.VerificationCode)
 		}
 
 		return nil
@@ -130,7 +133,7 @@ func testAccCheckGitlabProjectPagesDomainDestroy(s *terraform.State) error {
 	return nil
 }
 
-func testAccGitlabProjectPagesDomainConfig(rString string) string {
+func testAccGitlabProjectPagesDomainConfig(rString string, autoSslEnabled bool) string {
 	return fmt.Sprintf(`
 resource "gitlab_project" "foo" {
   name = "foo-%s"
@@ -141,13 +144,14 @@ resource "gitlab_project" "foo" {
   visibility_level = "public"
 }
 
-resource "gitlab_project_variable" "foo" {
+resource "gitlab_pages_domain" "foo" {
   project = "${gitlab_project.foo.id}"
-  key = "key_%s"
-  value = "value-%s"
-  variable_type = "env_var"
+	domain = "domain_%s"
+	certificate = "cert_%s"
+	key = "key_%s"
+	auto_ssl_enabled = %t
 }
-	`, rString, rString, rString)
+	`, rString, rString, rString, rString, autoSslEnabled)
 }
 
 func testAccGitlabProjectPagesDomainUpdateConfig(rString string) string {

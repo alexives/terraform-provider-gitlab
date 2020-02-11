@@ -55,6 +55,7 @@ func Provider() terraform.ResourceProvider {
 			"gitlab_project":                    resourceGitlabProject(),
 			"gitlab_label":                      resourceGitlabLabel(),
 			"gitlab_group_label":                resourceGitlabGroupLabel(),
+			"gitlab_pages_domain":               resourceGitlabProjectPagesDomain(),
 			"gitlab_pipeline_schedule":          resourceGitlabPipelineSchedule(),
 			"gitlab_pipeline_schedule_variable": resourceGitlabPipelineScheduleVariable(),
 			"gitlab_pipeline_trigger":           resourceGitlabPipelineTrigger(),
